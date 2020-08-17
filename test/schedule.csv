@@ -1,0 +1,17 @@
+Day,Name,Start,End,Color,Room
+Monday,Class 1,13:30,14:15,Orange,uni
+Monday,Coloquium,16:30,18:15,Green,uni
+Tuesday,Class 1 (Lab),08:00,10:45,Yellow,uni
+Tuesday,Elective 1,13:00,14:15,Gray,zoom
+Tuesday,Seminar,14:30,15:45,Green,zoom
+Wednesday,Class 2,10:00,11:15,Blue,uni
+Wednesday,Class 3,11:30,12:45,Blue,uni
+Wednesday,Class 1,13:00,14:15,Orange,uni
+Wednesday,Class 4,14:30,15:45,Magenta,zoom
+Thursday,Tutoring,09:00,12:00,Purple,teams
+Thursday,Elective 1,13:00,14:15,Gray,zoom
+Friday,Class 2,10:00,11:15,Blue,uni
+Friday,Class 3,11:30,12:45,Blue,uni
+Friday,Class 1,13:00,14:15,Orange,uni
+Friday,Class 4,14:30,15:45,Magenta,zoom
+Friday,Laboratory,16:30,20:15,Red,webex
