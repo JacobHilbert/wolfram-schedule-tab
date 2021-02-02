@@ -1,127 +1,41 @@
-(* Visual Configuration *)
+(* Generalities *)
+DayNumbers[s_String]  :=  ReplaceAll[Characters[s],Thread[Characters["LMIJV"]->Range[5]]]
+HourValue[t_TimeObject]  :=  First[t].{1,1/60}
+Hack[s_String, size_Integer, a___]  :=  Style[s,FontFamily->"Hack",size,a]
 
-(* Dark theme *) (*
-Color = <|
-	"Back"    -> "#181A1B", 
-	"Font"    -> "#DDDDDD", 
-	"Gray"    -> "#404548",
-	"Purple"  -> "#43008A",
-	"Blue"    -> "#0059A8",
-	"Green"   -> "#589F17",
-	"Yellow"  -> "#C19D09",
-	"Orange"  -> "#B86000",
-	"Red"     -> "#A81414",
-	"Magenta" -> "#900769"
-|> *)
+(* Import and process schedule data. All could be in one line, but no *)
+data = Values /@ Normal[SemanticImport[schedule]];
+data = MapThread[#1->Table[Session[i,#3,#4,#5],{i,DayNumbers[#2]}]&,Transpose[data]];
+data = Merge[Flatten@*Join]@data;
+data = ReplaceAll[Normal[data],Rule[k_,v_]:>{k,v}];
+data = Transpose[Join[{Range[Length[data]]},Transpose@RandomSample[data]]];
 
-(* Light theme, based on https://www.schemecolor.com/twisted-rainbow.php *)
-Color = <|
-	"Back"    -> "#FFFFFF",
-	"Font"    -> "#000000",
-	"Gray"    -> "#848484",
-	"Purple"  -> "#5400AC",
-	"Blue"    -> "#006FD3",
-	"Green"   -> "#6EC81D",
-	"Yellow"  -> "#FFE620",
-	"Orange"  -> "#FF9420",
-	"Red"     -> "#E73131",
-	"Magenta" -> "#B40983"
-|>
-backgroundHex = Color["Back"]
-Color = Map[RGBColor,Color]
+(* graphics definitions *)
+l = 2.50; (*horizontal lenght of the days*)
+r = 0.20; (*rounding radius*)
+d = 0.01; (*streching factor*)
+colors = ColorData["BlueGreenYellow"] /@ Subdivide[Length[data]-1];
+fontColors = ColorData["BlueGreenYellow"] /@ Mod[Subdivide[Length[data]-1]+0.5,1];
 
-fontStyle = {
-	FontFamily -> "Ubuntu Mono",
-	FontSize -> 16,
-	FontColor -> Color["Font"]
-}
-
-Styled[s_String] := Style[s,Sequence@@fontStyle]
-
-l = 3.00 (* horizontal lenght of the days *)
-r = 0.20 (* rounding radius *)
-d = 0.02 (* streching factor *)
-
-
-(* Utility functions *)
-
-WeekDay[s_String] := First@FirstPosition[{"Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"}, s]
-WeekDay::usage = "Takes a weekday name string and returns its number. WeekDay[\"Monday\"] is 1."
-
-DecimalHour[s_String] := #1 + #2/60 & @@ ToExpression@StringSplit[s, ":"]
-DecimalHour::usage = "Takes a 24 clock hour hh:mm and returns its decimal form."
-
-ProcessCSV[{day_,name_,start_,end_,color_,room_}] := <|
-	"Day"     -> WeekDay[day],
-	"Name"    -> name,
-	"Start"   -> -DecimalHour[start], (*negative because schedules are read top to bottom *)
-	"End"     -> -DecimalHour[end],
-	"Color"   -> Color[color],
-	"Tooltip" -> start<>"-"<>end<>"&#013;"<>room
-|>
-ProcessCSV::usage = "ProcessCSV[list] returns an Association with the information needed to make a schedule. 
-Fields are strings Day, Name, Start, End, Color and Tooltip."
-
-RectanglePosition[c_Association] := {
-	{l(c["Day"]+d  ),c["Start"]}, (* xmin, ymin *)
-	{l(c["Day"]+1-d),c["End"]  }  (* xmax, ymax *)
-}
-
-(* Main *)
-
-path = $ScriptCommandLine[[2]]
-rawData = Import[path][[2;;]]
-cleanData = Map[ProcessCSV,rawData]
-
-(* make rectangles *)
-positions = RectanglePosition[#]& /@ cleanData
-rectangles = Map[Apply[Rectangle],positions]
-roundedRectangles = Replace[#, f_[a_,b_] :> f[a,b,RoundingRadius->r]]& /@ rectangles
-tooltipRectangles = Apply[Tooltip[#1,#2]&] /@ Transpose[{roundedRectangles,cleanData[[All,"Tooltip"]]}]
-colorRectangles = Riffle[cleanData[[All,"Color"]],tooltipRectangles]
-
-(* make text *)
-textPositions = Map[Mean,positions]
-styledText = Styled /@ cleanData[[All,"Name"]]
-text = Apply[Text] /@ Transpose[{styledText,textPositions}]
-
-g = Graphics[
-	colorRectangles~Join~text,
-	Background->Color["Back"],
-	ImageSize->700
-]
-
-fig = StringReplace[
-	ExportString[g, "HTML", "FullDocument" -> False], {
-		RegularExpression["(?<=src=)[\\s\\S]+(?= width)"] -> "\"schedule.svg\" ", 
- 		"<p class=\"Output\">" -> "", 
-		"</p>" -> ""
+SessionGraphics[{index_, name_, session_Session}] := Block[{ycenter,yrange,day,start,end,place},
+	{day,start,end,place} = List@@session;
+	start = HourValue[start];end = HourValue[end];
+	ycenter = -(start+end)/2;
+	yrange = end-start;
+	{
+		colors[[index]],Rectangle[{l(day-0.5+d),-end},{l(day+0.5-d),-start},RoundingRadius->r],
+		fontColors[[index]],Text[Hack[name,20,Bold],{day l,ycenter+yrange/6}],Text[Hack[place,10],{day l,ycenter-yrange/6}]
 	}
 ]
 
-doc = StringReplace[
-"<!DOCTYPE html>
-<html>
-<head>
-	<title>
-		Schedule
-	</title>
-	<meta charset=\"utf-8\"/>
-	<style>
-		body {background-color: BGC;}
-	</style>
-</head>
-<body>
-	<center>
-		fig
-	</center>
-</body>
-</html>
-",{"BGC"->backgroundHex,"fig"->fig}]
+LectureGraphics[{index_, name_, sessions_List}] := Table[SessionGraphics[{index,name,s}],{s,sessions}]
 
-Quiet[CreateDirectory["results"]]
-file = OpenWrite["./results/schedule.html"]
-Export["./results/schedule.svg",g]
-WriteString[file,doc]
+yticks = {-HourValue[#],DateString[#]}& /@ Flatten[data[[All,3]]][[All,2]];
+xticks = {Range[5]l,{"Lunes","Martes","Miércoles","Jueves","Viernes"}}\[Transpose];
 
-
+Graphics[
+	LectureGraphics /@ data,
+	ImageSize->1000,ImagePadding->50,
+	Frame->True,FrameStyle->Black,FrameTicks->{xticks,yticks},FrameTicksStyle->Directive[Black,12,FontFamily->"Hack"],
+	GridLines->{None,yticks[[All,1]]},GridLinesStyle->LightGray
+]
